@@ -23,6 +23,7 @@ interface ExtendedHabit extends Habit {
 
 interface HabitContextType {
   habits: ExtendedHabit[];
+  archivedHabits: ExtendedHabit[];
   completions: HabitCompletion[];
   todayHabits: HabitWithProgress[];
   todayProgress: { completed: number; total: number; percentage: number };
@@ -32,6 +33,9 @@ interface HabitContextType {
   createHabit: (input: CreateHabitInput) => Promise<Habit>;
   updateHabit: (id: string, input: UpdateHabitInput) => Promise<boolean>;
   deleteHabit: (id: string) => Promise<boolean>;
+  archiveHabit: (id: string) => Promise<boolean>;
+  restoreHabit: (id: string) => Promise<boolean>;
+  fetchArchivedHabits: () => Promise<void>;
   toggleCompletion: (habitId: string, dateStr?: string) => Promise<boolean>;
   isCompleted: (habitId: string, dateStr?: string) => boolean;
   getHabitById: (id: string) => ExtendedHabit | undefined;
@@ -63,6 +67,7 @@ export function HabitProvider({ children }: { children: ReactNode }) {
   const currentDateStr = useCurrentDateSnapshot();
 
   const [habits, setHabits] = useState<ExtendedHabit[]>([]);
+  const [archivedHabits, setArchivedHabits] = useState<ExtendedHabit[]>([]);
   const [completions, setCompletions] = useState<HabitCompletion[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -381,10 +386,63 @@ export function HabitProvider({ children }: { children: ReactNode }) {
       }
 
       setHabits((prev) => prev.filter((h) => h.id !== id));
+      setArchivedHabits((prev) => prev.filter((h) => h.id !== id));
       setCompletions((prev) => prev.filter((c) => c.habitId !== id));
       return true;
     } catch (err) {
       console.error("Delete habit error:", err);
+      return false;
+    }
+  };
+
+  // Fetch archived habits
+  const fetchArchivedHabits = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/habits?archived=true", { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setArchivedHabits(json.data || []);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load archived habits:", err);
+    }
+  }, [user]);
+
+  // Archive habit
+  const archiveHabit = async (id: string): Promise<boolean> => {
+    const success = await updateHabit(id, { isArchived: true });
+    if (success) {
+      const archivedItem = habits.find((h) => h.id === id);
+      setHabits((prev) => prev.filter((h) => h.id !== id));
+      if (archivedItem) {
+        setArchivedHabits((prev) => [{ ...archivedItem, isArchived: true }, ...prev]);
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // Restore archived habit
+  const restoreHabit = async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/habits/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: false }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error?.message || "Gagal memulihkan kebiasaan");
+      }
+      const restored = data.data;
+      setArchivedHabits((prev) => prev.filter((h) => h.id !== id));
+      setHabits((prev) => [...prev, restored]);
+      return true;
+    } catch (err) {
+      console.error("Restore habit error:", err);
       return false;
     }
   };
@@ -462,6 +520,7 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     <HabitContext.Provider
       value={{
         habits,
+        archivedHabits,
         completions,
         todayHabits,
         todayProgress,
@@ -471,6 +530,9 @@ export function HabitProvider({ children }: { children: ReactNode }) {
         createHabit,
         updateHabit,
         deleteHabit,
+        archiveHabit,
+        restoreHabit,
+        fetchArchivedHabits,
         toggleCompletion,
         isCompleted,
         getHabitById,

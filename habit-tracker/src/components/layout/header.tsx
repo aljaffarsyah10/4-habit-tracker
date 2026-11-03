@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Flame, Plus, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useAuth } from "@/features/auth/context/auth-context";
 
 const emptySubscribe = () => () => {};
@@ -52,6 +53,7 @@ export function Header() {
             <span>Tambah Kebiasaan</span>
           </Link>
         </Button>
+        <ThemeToggle />
         <Link
           href="/settings"
           className="size-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"

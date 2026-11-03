@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useHabits } from "@/features/habits/context/habit-context";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,16 @@ import { Plus, CheckCircle2, Flame, Calendar, AlertCircle, RefreshCw } from "luc
 
 export default function DashboardPage() {
   const { todayHabits, todayProgress, toggleCompletion, isLoading, error, refreshData } = useHabits();
+  const [filter, setFilter] = useState<"all" | "completed" | "pending">("all");
+
+  const completedCount = todayProgress.completed;
+  const remainingCount = Math.max(0, todayProgress.total - todayProgress.completed);
+
+  const displayedHabits = todayHabits.filter((h) => {
+    if (filter === "completed") return h.isCompletedToday;
+    if (filter === "pending") return !h.isCompletedToday;
+    return true;
+  });
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -91,18 +102,57 @@ export default function DashboardPage() {
             <Flame className="size-3.5 text-amber-500" />
             <span>Remaining</span>
           </div>
-          <p className="text-xl font-bold mt-1 text-foreground">
-            {Math.max(0, todayProgress.total - todayProgress.completed)}
-          </p>
+          <p className="text-xl font-bold mt-1 text-foreground">{remainingCount}</p>
         </Card>
       </div>
 
-      {/* Habit List Stream */}
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <CheckCircle2 className="size-4 text-primary" />
-          <span>Scheduled Today</span>
-        </h2>
+      {/* Habit List Stream with Filter Pills */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <CheckCircle2 className="size-4 text-primary" />
+            <span>Scheduled Today</span>
+          </h2>
+
+          {/* Filter Pills */}
+          {todayHabits.length > 0 && (
+            <div className="inline-flex rounded-lg border border-border p-1 bg-muted/40 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setFilter("all")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  filter === "all"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All ({todayHabits.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter("completed")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  filter === "completed"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Completed ({completedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter("pending")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  filter === "pending"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Pending ({remainingCount})
+              </button>
+            </div>
+          )}
+        </div>
 
         {todayHabits.length === 0 ? (
           <EmptyState
@@ -111,9 +161,15 @@ export default function DashboardPage() {
             actionLabel="+ Create Habit"
             actionHref="/habits/new"
           />
+        ) : displayedHabits.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            {filter === "completed"
+              ? "You haven't completed any habits yet today. Click a habit checkmark above to complete it!"
+              : "Awesome job! You've completed all scheduled habits for today!"}
+          </div>
         ) : (
           <div className="grid gap-3">
-            {todayHabits.map((habit) => (
+            {displayedHabits.map((habit) => (
               <HabitCard
                 key={habit.id}
                 habit={habit}

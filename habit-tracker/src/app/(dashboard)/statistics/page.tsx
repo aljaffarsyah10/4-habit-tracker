@@ -1,16 +1,68 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useHabits } from "@/features/habits/context/habit-context";
 import { StatCard } from "@/components/common/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ProgressBar } from "@/components/common/progress-bar";
+import { CalendarHeatmap } from "@/features/statistics/components/calendar-heatmap";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Flame, Trophy, TrendingUp, CheckCircle2 } from "lucide-react";
 
-export default function StatisticsPage() {
-  const { getStatistics, isLoading } = useHabits();
+interface StatsApiResponse {
+  periodDays: number;
+  startDate: string;
+  endDate: string;
+  totalActiveHabits: number;
+  totalAllTimeCompletions: number;
+  totalPeriodCompleted: number;
+  totalPeriodScheduled: number;
+  overallCompletionRate: number;
+  highestCurrentStreak: number;
+  highestBestStreak: number;
+  dailyBreakdown: {
+    date: string;
+    totalScheduled: number;
+    totalCompleted: number;
+    completionRate: number;
+  }[];
+}
 
-  if (isLoading) {
+export default function StatisticsPage() {
+  const { getStatistics, isLoading: contextLoading } = useHabits();
+  const [statsData, setStatsData] = useState<StatsApiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/statistics?days=30", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          if (!ignore && json.success && json.data) {
+            setStatsData(json.data);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch detailed statistics:", err);
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchStats();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (contextLoading || loading) {
     return (
       <div className="space-y-6">
         <div>
@@ -24,11 +76,19 @@ export default function StatisticsPage() {
           <Skeleton className="h-28 rounded-lg" />
         </div>
         <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-64 rounded-lg" />
       </div>
     );
   }
 
-  const stats = getStatistics();
+  const localStats = getStatistics();
+
+  const currentStreak = statsData?.highestCurrentStreak ?? localStats.currentStreak;
+  const bestStreak = statsData?.highestBestStreak ?? localStats.bestStreak;
+  const completionRate = statsData?.overallCompletionRate ?? localStats.completionRate;
+  const totalCompletions = statsData?.totalAllTimeCompletions ?? localStats.totalCompletions;
+  const totalHabits = statsData?.totalActiveHabits ?? localStats.totalHabits;
+  const heatmapDays = statsData?.dailyBreakdown || [];
 
   return (
     <div className="space-y-6">
@@ -44,26 +104,26 @@ export default function StatisticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Current Streak"
-          value={`${stats.currentStreak} Days`}
+          value={`${currentStreak} Days`}
           description="Highest active streak"
           icon={<Flame className="size-4 text-amber-500" />}
         />
         <StatCard
           title="Best Streak"
-          value={`${stats.bestStreak} Days`}
+          value={`${bestStreak} Days`}
           description="All-time personal record"
           icon={<Trophy className="size-4 text-primary" />}
         />
         <StatCard
           title="Completion Rate"
-          value={`${stats.completionRate}%`}
-          description="Past 7 days average"
+          value={`${completionRate}%`}
+          description="Past 30 days average"
           icon={<TrendingUp className="size-4 text-emerald-500" />}
         />
         <StatCard
           title="Total Check-ins"
-          value={stats.totalCompletions}
-          description={`Across ${stats.totalHabits} active habits`}
+          value={totalCompletions}
+          description={`Across ${totalHabits} active habits`}
           icon={<CheckCircle2 className="size-4 text-blue-500" />}
         />
       </div>
@@ -78,7 +138,7 @@ export default function StatisticsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            {stats.weeklySummary.map((item) => (
+            {localStats.weeklySummary.map((item) => (
               <div
                 key={item.date}
                 className="p-3 rounded-lg border border-border bg-card/60 flex flex-col items-center justify-between min-h-[90px]"
@@ -99,12 +159,15 @@ export default function StatisticsPage() {
 
           <div className="pt-2">
             <ProgressBar
-              value={stats.completionRate}
+              value={localStats.completionRate}
               label="Overall Weekly Performance"
             />
           </div>
         </CardContent>
       </Card>
+
+      {/* 30-Day Activity Heatmap */}
+      {heatmapDays.length > 0 && <CalendarHeatmap days={heatmapDays} />}
     </div>
   );
 }
