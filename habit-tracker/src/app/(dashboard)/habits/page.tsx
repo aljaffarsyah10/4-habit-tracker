@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StreakBadge } from "@/components/common/streak-badge";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { HabitDeleteDialog } from "@/features/habits/components/habit-delete-dialog";
-import { Plus, Edit2, Trash2, Calendar } from "lucide-react";
+import { HabitCardSkeleton } from "@/components/feedback/loading-skeleton";
+import { Plus, Edit2, Trash2, Calendar, AlertCircle, RefreshCw } from "lucide-react";
 
 const DAYS_MAP: Record<number, string> = {
   0: "Sun",
@@ -21,7 +22,7 @@ const DAYS_MAP: Record<number, string> = {
 };
 
 export default function HabitsPage() {
-  const { habits, deleteHabit, getHabitStreak } = useHabits();
+  const { habits, deleteHabit, getHabitStreak, isLoading, error, refreshData } = useHabits();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const activeHabits = habits.filter((h) => !h.isArchived);
@@ -30,6 +31,25 @@ export default function HabitsPage() {
     if (frequency === "DAILY" || scheduledDays.length === 7) return "Every day";
     return scheduledDays.map((d) => DAYS_MAP[d]).join(", ");
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-8 w-40 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-60 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-9 w-32 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="grid gap-4">
+          <HabitCardSkeleton />
+          <HabitCardSkeleton />
+          <HabitCardSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -48,6 +68,25 @@ export default function HabitsPage() {
           </Link>
         </Button>
       </div>
+
+      {/* Error Banner with Retry */}
+      {error && (
+        <div className="flex items-center justify-between rounded-lg bg-destructive/15 p-4 text-sm text-destructive">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="size-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refreshData()}
+            className="gap-1.5 border-destructive/30 hover:bg-destructive/10"
+          >
+            <RefreshCw className="size-3.5" />
+            <span>Retry</span>
+          </Button>
+        </div>
+      )}
 
       {/* Habits List */}
       {activeHabits.length === 0 ? (

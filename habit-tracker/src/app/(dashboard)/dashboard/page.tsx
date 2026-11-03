@@ -7,10 +7,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ProgressBar } from "@/components/common/progress-bar";
 import { HabitCard } from "@/features/habits/components/habit-card";
 import { EmptyState } from "@/components/feedback/empty-state";
-import { Plus, CheckCircle2, Flame, Calendar } from "lucide-react";
+import { DashboardSkeleton } from "@/components/feedback/loading-skeleton";
+import { Plus, CheckCircle2, Flame, Calendar, AlertCircle, RefreshCw } from "lucide-react";
 
 export default function DashboardPage() {
-  const { todayHabits, todayProgress, toggleCompletion } = useHabits();
+  const { todayHabits, todayProgress, toggleCompletion, isLoading, error, refreshData } = useHabits();
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
@@ -29,6 +34,25 @@ export default function DashboardPage() {
           </Link>
         </Button>
       </div>
+
+      {/* Error Banner with Retry */}
+      {error && (
+        <div className="flex items-center justify-between rounded-lg bg-destructive/15 p-4 text-sm text-destructive">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="size-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refreshData()}
+            className="gap-1.5 border-destructive/30 hover:bg-destructive/10"
+          >
+            <RefreshCw className="size-3.5" />
+            <span>Retry</span>
+          </Button>
+        </div>
+      )}
 
       {/* Daily Progress Banner */}
       <Card className="bg-card border-border shadow-sm">
@@ -68,7 +92,7 @@ export default function DashboardPage() {
             <span>Remaining</span>
           </div>
           <p className="text-xl font-bold mt-1 text-foreground">
-            {todayProgress.total - todayProgress.completed}
+            {Math.max(0, todayProgress.total - todayProgress.completed)}
           </p>
         </Card>
       </div>

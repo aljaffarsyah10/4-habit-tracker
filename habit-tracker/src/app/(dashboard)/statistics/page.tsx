@@ -4,10 +4,30 @@ import { useHabits } from "@/features/habits/context/habit-context";
 import { StatCard } from "@/components/common/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ProgressBar } from "@/components/common/progress-bar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Flame, Trophy, TrendingUp, CheckCircle2 } from "lucide-react";
 
 export default function StatisticsPage() {
-  const { getStatistics } = useHabits();
+  const { getStatistics, isLoading } = useHabits();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-72 mt-2" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Skeleton className="h-28 rounded-lg" />
+          <Skeleton className="h-28 rounded-lg" />
+          <Skeleton className="h-28 rounded-lg" />
+          <Skeleton className="h-28 rounded-lg" />
+        </div>
+        <Skeleton className="h-64 rounded-lg" />
+      </div>
+    );
+  }
+
   const stats = getStatistics();
 
   return (

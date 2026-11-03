@@ -13,9 +13,14 @@ export default function NewHabitPage() {
   const router = useRouter();
   const { createHabit } = useHabits();
 
-  const handleCreate = (values: HabitFormValues) => {
-    createHabit(values);
-    router.push("/habits");
+  const handleCreate = async (values: HabitFormValues) => {
+    try {
+      await createHabit(values);
+      router.push("/habits");
+      router.refresh();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to create habit");
+    }
   };
 
   return (

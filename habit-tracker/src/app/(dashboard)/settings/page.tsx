@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { useAuth } from "@/features/auth/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { LogOut, User, Shield } from "lucide-react";
 
 export default function SettingsPage() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Page Header */}
@@ -28,15 +32,12 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Display Name</Label>
-            <Input id="name" defaultValue="John Doe" />
+            <Input id="name" value={user?.name || ""} readOnly />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
-            <Input id="email" type="email" defaultValue="user@example.com" disabled />
+            <Input id="email" type="email" value={user?.email || ""} readOnly disabled />
           </div>
-          <Button size="sm" variant="outline">
-            Save Changes
-          </Button>
         </CardContent>
       </Card>
 
@@ -54,15 +55,17 @@ export default function SettingsPage() {
             <p className="text-sm font-medium">Sign Out</p>
             <p className="text-xs text-muted-foreground">Terminate your current session on this device.</p>
           </div>
-          <Button asChild variant="destructive" size="sm" className="gap-1.5">
-            <Link href="/login">
-              <LogOut className="size-4" />
-              <span>Log Out</span>
-            </Link>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="gap-1.5"
+            onClick={logout}
+          >
+            <LogOut className="size-4" />
+            <span>Log Out</span>
           </Button>
         </CardContent>
       </Card>
     </div>
   );
 }
-

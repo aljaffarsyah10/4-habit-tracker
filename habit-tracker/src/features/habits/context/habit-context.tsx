@@ -13,83 +13,59 @@ import React, {
 import { Habit, HabitWithProgress, CreateHabitInput, UpdateHabitInput } from "@/types/habit";
 import { HabitCompletion } from "@/types/completion";
 import { UserStatistics } from "@/types/statistics";
-import {
-  INITIAL_MOCK_HABITS,
-  generateInitialCompletions,
-  STATIC_MOCK_DATE,
-  getFormattedDate,
-} from "../mocks/habits.mock";
+import { useAuth } from "@/features/auth/context/auth-context";
+
+interface ExtendedHabit extends Habit {
+  currentStreak?: number;
+  bestStreak?: number;
+  totalCompletions?: number;
+}
 
 interface HabitContextType {
-  habits: Habit[];
+  habits: ExtendedHabit[];
   completions: HabitCompletion[];
   todayHabits: HabitWithProgress[];
   todayProgress: { completed: number; total: number; percentage: number };
-  createHabit: (input: CreateHabitInput) => Habit;
-  updateHabit: (id: string, input: UpdateHabitInput) => void;
-  deleteHabit: (id: string) => void;
-  toggleCompletion: (habitId: string, dateStr?: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  refreshData: () => Promise<void>;
+  createHabit: (input: CreateHabitInput) => Promise<Habit>;
+  updateHabit: (id: string, input: UpdateHabitInput) => Promise<boolean>;
+  deleteHabit: (id: string) => Promise<boolean>;
+  toggleCompletion: (habitId: string, dateStr?: string) => Promise<boolean>;
   isCompleted: (habitId: string, dateStr?: string) => boolean;
-  getHabitById: (id: string) => Habit | undefined;
+  getHabitById: (id: string) => ExtendedHabit | undefined;
   getHabitStreak: (habitId: string) => { currentStreak: number; bestStreak: number };
   getStatistics: () => UserStatistics;
 }
 
 const HabitContext = createContext<HabitContextType | undefined>(undefined);
 
-const HABITS_STORAGE_KEY = "habit_tracker_mock_habits_v1";
-const COMPLETIONS_STORAGE_KEY = "habit_tracker_mock_completions_v1";
-
 const emptySubscribe = () => () => {};
+
+function getFormattedDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function useCurrentDateSnapshot(): string {
   return useSyncExternalStore(
     emptySubscribe,
     () => getFormattedDate(new Date()),
-    () => STATIC_MOCK_DATE
+    () => "2026-11-03"
   );
 }
 
 export function HabitProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const currentDateStr = useCurrentDateSnapshot();
 
-  // Lazy state initializers
-  const [habits, setHabits] = useState<Habit[]>(() => {
-    if (typeof window === "undefined") return INITIAL_MOCK_HABITS;
-    try {
-      const stored = localStorage.getItem(HABITS_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : INITIAL_MOCK_HABITS;
-    } catch {
-      return INITIAL_MOCK_HABITS;
-    }
-  });
-
-  const [completions, setCompletions] = useState<HabitCompletion[]>(() => {
-    if (typeof window === "undefined") return generateInitialCompletions();
-    try {
-      const stored = localStorage.getItem(COMPLETIONS_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : generateInitialCompletions();
-    } catch {
-      return generateInitialCompletions();
-    }
-  });
-
-  // Persist to localStorage on mutation
-  useEffect(() => {
-    try {
-      localStorage.setItem(HABITS_STORAGE_KEY, JSON.stringify(habits));
-    } catch {
-      // Ignore
-    }
-  }, [habits]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(COMPLETIONS_STORAGE_KEY, JSON.stringify(completions));
-    } catch {
-      // Ignore
-    }
-  }, [completions]);
+  const [habits, setHabits] = useState<ExtendedHabit[]>([]);
+  const [completions, setCompletions] = useState<HabitCompletion[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const todayStr = currentDateStr;
 
@@ -97,6 +73,106 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     const [y, m, d] = todayStr.split("-").map(Number);
     return new Date(y, m - 1, d).getDay();
   }, [todayStr]);
+
+  // Fetch habits and completions from real backend API
+  const refreshData = useCallback(async () => {
+    if (!user) {
+      setHabits([]);
+      setCompletions([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Calculate 30-day start date for completions
+      const pastDate = new Date();
+      pastDate.setDate(pastDate.getDate() - 35);
+      const startDateStr = getFormattedDate(pastDate);
+
+      const [habitsRes, completionsRes] = await Promise.all([
+        fetch("/api/habits", { cache: "no-store" }),
+        fetch(`/api/completions?startDate=${startDateStr}`, { cache: "no-store" }),
+      ]);
+
+      if (!habitsRes.ok || !completionsRes.ok) {
+        throw new Error("Gagal mengambil data dari server");
+      }
+
+      const habitsData = await habitsRes.json();
+      const completionsData = await completionsRes.json();
+
+      if (habitsData.success) {
+        setHabits(habitsData.data || []);
+      }
+      if (completionsData.success) {
+        setCompletions(completionsData.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load habits data:", err);
+      setError("Gagal memuat data kebiasaan. Silakan periksa koneksi Anda dan coba lagi.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // Automatically fetch on mount or user session change
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadInitialData() {
+      if (!user) {
+        setHabits([]);
+        setCompletions([]);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const pastDate = new Date();
+        pastDate.setDate(pastDate.getDate() - 35);
+        const startDateStr = getFormattedDate(pastDate);
+
+        const [habitsRes, completionsRes] = await Promise.all([
+          fetch("/api/habits", { cache: "no-store" }),
+          fetch(`/api/completions?startDate=${startDateStr}`, { cache: "no-store" }),
+        ]);
+
+        if (!habitsRes.ok || !completionsRes.ok) {
+          throw new Error("Gagal mengambil data dari server");
+        }
+
+        const habitsData = await habitsRes.json();
+        const completionsData = await completionsRes.json();
+
+        if (!ignore) {
+          if (habitsData.success) {
+            setHabits(habitsData.data || []);
+          }
+          if (completionsData.success) {
+            setCompletions(completionsData.data || []);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load habits data:", err);
+        if (!ignore) {
+          setError("Gagal memuat data kebiasaan. Silakan periksa koneksi Anda dan coba lagi.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [user]);
 
   // Check if habit is completed on given date
   const isCompleted = useCallback(
@@ -108,12 +184,13 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     [completions, todayStr]
   );
 
-  // Streak calculation engine
+  // Streak calculation engine using loaded completions
   const getHabitStreak = useCallback(
     (habitId: string): { currentStreak: number; bestStreak: number } => {
       const habit = habits.find((h) => h.id === habitId);
       if (!habit) return { currentStreak: 0, bestStreak: 0 };
 
+      // If backend already provided precalculated streaks, use them as baseline
       const habitCompletions = completions.filter((c) => c.habitId === habitId);
       const completionDateSet = new Set(habitCompletions.map((c) => c.completionDate));
 
@@ -122,7 +199,7 @@ export function HabitProvider({ children }: { children: ReactNode }) {
 
       let currentStreak = 0;
 
-      // Check today: if scheduled and completed, +1 and move back
+      // Check today: if scheduled and done, count it
       const isTodayScheduled =
         habit.frequency === "DAILY" || habit.scheduledDays.includes(checkDate.getDay());
       const isTodayDone = completionDateSet.has(getFormattedDate(checkDate));
@@ -130,10 +207,10 @@ export function HabitProvider({ children }: { children: ReactNode }) {
       if (isTodayScheduled && isTodayDone) {
         currentStreak++;
       }
-      // Step back to yesterday
+
+      // Check yesterday and past days
       checkDate.setDate(checkDate.getDate() - 1);
 
-      // Iteratively go back up to 365 days
       for (let i = 0; i < 365; i++) {
         const dayOfWeek = checkDate.getDay();
         const isDayScheduled =
@@ -148,19 +225,21 @@ export function HabitProvider({ children }: { children: ReactNode }) {
             break;
           }
         }
-        // Non-scheduled days are skipped without breaking streak
         checkDate.setDate(checkDate.getDate() - 1);
       }
 
-      // Best streak (at least current streak)
-      const bestStreak = Math.max(currentStreak, habitCompletions.length > 0 ? currentStreak + 2 : 0);
+      const bestStreak = Math.max(
+        habit.bestStreak ?? 0,
+        currentStreak,
+        habitCompletions.length > 0 ? currentStreak : 0
+      );
 
       return { currentStreak, bestStreak };
     },
     [habits, completions, todayStr]
   );
 
-  // Habits scheduled for today with progress info
+  // Today's scheduled habits with progress
   const todayHabits = useMemo((): HabitWithProgress[] => {
     return habits
       .filter((h) => !h.isArchived)
@@ -180,7 +259,7 @@ export function HabitProvider({ children }: { children: ReactNode }) {
       });
   }, [habits, isCompleted, getHabitStreak, todayStr, todayDayOfWeek]);
 
-  // Today's total progress
+  // Today's progress calculation
   const todayProgress = useMemo(() => {
     const total = todayHabits.length;
     const completed = todayHabits.filter((h) => h.isCompletedToday).length;
@@ -188,70 +267,126 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     return { completed, total, percentage };
   }, [todayHabits]);
 
-  // Toggle completion
-  const toggleCompletion = (habitId: string, dateStr: string = todayStr) => {
-    setCompletions((prev) => {
-      const existsIndex = prev.findIndex(
-        (c) => c.habitId === habitId && c.completionDate === dateStr
-      );
+  // Optimistic toggle completion mutation
+  const toggleCompletion = async (habitId: string, dateStr: string = todayStr): Promise<boolean> => {
+    const previousCompletions = [...completions];
+    const exists = completions.some(
+      (c) => c.habitId === habitId && c.completionDate === dateStr
+    );
 
-      if (existsIndex >= 0) {
-        // Untrack (remove)
-        return prev.filter((_, idx) => idx !== existsIndex);
-      } else {
-        // Track (add)
-        const newRecord: HabitCompletion = {
-          id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    // 1. Optimistic update
+    if (exists) {
+      setCompletions((prev) =>
+        prev.filter((c) => !(c.habitId === habitId && c.completionDate === dateStr))
+      );
+    } else {
+      const optimisticRecord: HabitCompletion = {
+        id: `temp-${Date.now()}`,
+        habitId,
+        userId: user?.id || "user",
+        completionDate: dateStr,
+        completedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      setCompletions((prev) => [optimisticRecord, ...prev]);
+    }
+
+    // 2. Persist to real backend API
+    try {
+      const res = await fetch("/api/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           habitId,
-          userId: "user-1",
           completionDate: dateStr,
-          completedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-        };
-        return [newRecord, ...prev];
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error?.message || "Gagal memperbarui status kebiasaan");
       }
-    });
+
+      // If backend returned actual created completion, swap out optimistic record
+      if (data.data?.completed && data.data?.completion) {
+        setCompletions((prev) =>
+          prev.map((c) =>
+            c.id.startsWith("temp-") && c.habitId === habitId ? data.data.completion : c
+          )
+        );
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Toggle completion error, rolling back:", err);
+      // Rollback on failure
+      setCompletions(previousCompletions);
+      alert("Gagal memperbarui kebiasaan. Perubahan telah dibatalkan.");
+      return false;
+    }
   };
 
   // Create habit
-  const createHabit = (input: CreateHabitInput): Habit => {
-    const newHabit: Habit = {
-      id: `habit-${Date.now()}`,
-      userId: "user-1",
-      name: input.name,
-      description: input.description || null,
-      frequency: input.frequency,
-      scheduledDays: input.scheduledDays,
-      color: input.color || "#3b82f6",
-      isArchived: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  const createHabit = async (input: CreateHabitInput): Promise<Habit> => {
+    const res = await fetch("/api/habits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
 
-    setHabits((prev) => [newHabit, ...prev]);
-    return newHabit;
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data?.error?.message || "Gagal membuat kebiasaan baru");
+    }
+
+    const created: ExtendedHabit = data.data;
+    setHabits((prev) => [created, ...prev]);
+    return created;
   };
 
   // Update habit
-  const updateHabit = (id: string, input: UpdateHabitInput) => {
-    setHabits((prev) =>
-      prev.map((h) =>
-        h.id === id
-          ? {
-              ...h,
-              ...input,
-              updatedAt: new Date().toISOString(),
-            }
-          : h
-      )
-    );
+  const updateHabit = async (id: string, input: UpdateHabitInput): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/habits/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error?.message || "Gagal memperbarui kebiasaan");
+      }
+
+      setHabits((prev) =>
+        prev.map((h) => (h.id === id ? { ...h, ...data.data } : h))
+      );
+      return true;
+    } catch (err) {
+      console.error("Update habit error:", err);
+      return false;
+    }
   };
 
   // Delete habit
-  const deleteHabit = (id: string) => {
-    setHabits((prev) => prev.filter((h) => h.id !== id));
-    // Cascade delete completions
-    setCompletions((prev) => prev.filter((c) => c.habitId !== id));
+  const deleteHabit = async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/habits/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error?.message || "Gagal menghapus kebiasaan");
+      }
+
+      setHabits((prev) => prev.filter((h) => h.id !== id));
+      setCompletions((prev) => prev.filter((c) => c.habitId !== id));
+      return true;
+    } catch (err) {
+      console.error("Delete habit error:", err);
+      return false;
+    }
   };
 
   // Get habit by ID
@@ -259,7 +394,7 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     return habits.find((h) => h.id === id);
   };
 
-  // Compute aggregate statistics
+  // Calculate statistics from actual database data
   const getStatistics = (): UserStatistics => {
     let maxCurrentStreak = 0;
     let maxBestStreak = 0;
@@ -273,9 +408,9 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     const activeHabits = habits.filter((h) => !h.isArchived);
     const totalCompletions = completions.length;
 
-    // Calculate weekly summary for last 7 days
+    // Last 7 days breakdown
     const weeklySummary = [];
-    const daysName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const daysName = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
     const [y, m, d] = todayStr.split("-").map(Number);
 
@@ -304,13 +439,19 @@ export function HabitProvider({ children }: { children: ReactNode }) {
       });
     }
 
+    const scheduledDaysCount = weeklySummary.filter((d) => d.totalScheduled > 0);
     const avgRate =
-      weeklySummary.reduce((acc, curr) => acc + curr.percentage, 0) / (weeklySummary.length || 1);
+      scheduledDaysCount.length > 0
+        ? Math.round(
+            scheduledDaysCount.reduce((acc, curr) => acc + curr.percentage, 0) /
+              scheduledDaysCount.length
+          )
+        : 0;
 
     return {
       currentStreak: maxCurrentStreak,
       bestStreak: Math.max(maxBestStreak, maxCurrentStreak),
-      completionRate: Math.round(avgRate),
+      completionRate: avgRate,
       totalCompletions,
       totalHabits: activeHabits.length,
       weeklySummary,
@@ -324,6 +465,9 @@ export function HabitProvider({ children }: { children: ReactNode }) {
         completions,
         todayHabits,
         todayProgress,
+        isLoading,
+        error,
+        refreshData,
         createHabit,
         updateHabit,
         deleteHabit,

@@ -6,9 +6,17 @@ import { MAIN_NAVIGATION } from "@/constants/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Flame, LogOut } from "lucide-react";
+import { useAuth } from "@/features/auth/context/auth-context";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
+
+  const userInitial = user?.name
+    ? user.name.slice(0, 2).toUpperCase()
+    : user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : "U";
 
   return (
     <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-card h-screen sticky top-0">
@@ -56,28 +64,31 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer / Account Placeholder */}
+      {/* Footer / Authenticated User Account */}
       <div className="p-4 border-t border-border mt-auto">
         <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/50">
-          <div className="flex items-center gap-3">
-            <div className="size-8 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center text-xs">
-              JD
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="size-8 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center text-xs shrink-0">
+              {userInitial}
             </div>
-            <div className="text-xs">
-              <p className="font-medium">John Doe</p>
-              <p className="text-muted-foreground truncate max-w-[100px]">user@example.com</p>
+            <div className="text-xs truncate">
+              <p className="font-medium truncate">{user?.name || "Pengguna"}</p>
+              <p className="text-muted-foreground truncate max-w-[120px]" title={user?.email}>
+                {user?.email || "Memuat..."}
+              </p>
             </div>
           </div>
-          <Link
-            href="/login"
-            className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-            title="Logout"
+          <button
+            type="button"
+            onClick={logout}
+            className="text-muted-foreground hover:text-destructive p-1.5 rounded-md hover:bg-background transition-colors"
+            title="Keluar (Logout)"
+            aria-label="Logout"
           >
             <LogOut className="size-4" />
-          </Link>
+          </button>
         </div>
       </div>
     </aside>
   );
 }
-

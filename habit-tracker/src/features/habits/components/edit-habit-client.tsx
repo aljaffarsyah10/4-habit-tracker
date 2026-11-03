@@ -10,6 +10,7 @@ import { HabitDeleteDialog } from "./habit-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Trash2 } from "lucide-react";
 
 interface EditHabitClientProps {
@@ -18,10 +19,30 @@ interface EditHabitClientProps {
 
 export function EditHabitClient({ id }: EditHabitClientProps) {
   const router = useRouter();
-  const { getHabitById, updateHabit, deleteHabit } = useHabits();
+  const { getHabitById, updateHabit, deleteHabit, isLoading } = useHabits();
   const [showDelete, setShowDelete] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const habit = getHabitById(id);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Skeleton className="h-8 w-32" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!habit) {
     return (
@@ -36,14 +57,26 @@ export function EditHabitClient({ id }: EditHabitClientProps) {
     );
   }
 
-  const handleUpdate = (values: HabitFormValues) => {
-    updateHabit(id, values);
-    router.push("/habits");
+  const handleUpdate = async (values: HabitFormValues) => {
+    setIsUpdating(true);
+    const success = await updateHabit(id, values);
+    setIsUpdating(false);
+    if (success) {
+      router.push("/habits");
+      router.refresh();
+    } else {
+      alert("Gagal memperbarui kebiasaan. Silakan coba lagi.");
+    }
   };
 
-  const handleDelete = () => {
-    deleteHabit(id);
-    router.push("/habits");
+  const handleDelete = async () => {
+    const success = await deleteHabit(id);
+    if (success) {
+      router.push("/habits");
+      router.refresh();
+    } else {
+      alert("Gagal menghapus kebiasaan. Silakan coba lagi.");
+    }
   };
 
   return (
@@ -68,6 +101,7 @@ export function EditHabitClient({ id }: EditHabitClientProps) {
             size="sm"
             className="text-destructive hover:bg-destructive/10 gap-1.5 text-xs"
             onClick={() => setShowDelete(true)}
+            disabled={isUpdating}
           >
             <Trash2 className="size-3.5" />
             <span>Delete</span>
@@ -84,7 +118,7 @@ export function EditHabitClient({ id }: EditHabitClientProps) {
             }}
             onSubmit={handleUpdate}
             onCancel={() => router.push("/habits")}
-            submitLabel="Update Habit"
+            submitLabel={isUpdating ? "Menyimpan..." : "Update Habit"}
           />
         </CardContent>
       </Card>
@@ -98,4 +132,3 @@ export function EditHabitClient({ id }: EditHabitClientProps) {
     </div>
   );
 }
-
