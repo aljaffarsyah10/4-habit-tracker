@@ -271,3 +271,4 @@ stateDiagram-v2
 - [x] **Design Tokens Terdokumentasi**: Palet warna lengkap (Light & Dark mode), font scale, spacing scale, border radius, dan aksen habit terdokumentasi.
 - [x] **Komponen Reusable Terdefinisi**: `AppShell`, `HabitCard`, `ProgressBar`, `StatCard`, `HabitForm`, `ConfirmDialog`, `EmptyState`, dan `Skeleton` telah ditentukan spesifikasinya.
 - [x] **UI States Terdokumentasi**: Matriks 6 status visual (*Loading*, *Empty*, *Error*, *Success*, *Disabled*, *Completed*) beserta diagram alur state telah ditetapkan.
+
