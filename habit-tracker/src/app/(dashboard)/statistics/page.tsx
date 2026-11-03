@@ -1,8 +1,15 @@
+"use client";
+
+import { useHabits } from "@/features/habits/context/habit-context";
 import { StatCard } from "@/components/common/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ProgressBar } from "@/components/common/progress-bar";
 import { Flame, Trophy, TrendingUp, CheckCircle2 } from "lucide-react";
 
 export default function StatisticsPage() {
+  const { getStatistics } = useHabits();
+  const stats = getStatistics();
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -17,60 +24,67 @@ export default function StatisticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Current Streak"
-          value="12 Days"
-          description="Read 15 Pages of Book"
+          value={`${stats.currentStreak} Days`}
+          description="Highest active streak"
           icon={<Flame className="size-4 text-amber-500" />}
-          trend="+3 days"
         />
         <StatCard
           title="Best Streak"
-          value="24 Days"
-          description="Morning 20m Workout"
+          value={`${stats.bestStreak} Days`}
+          description="All-time personal record"
           icon={<Trophy className="size-4 text-primary" />}
         />
         <StatCard
           title="Completion Rate"
-          value="78%"
-          description="Last 30 days average"
+          value={`${stats.completionRate}%`}
+          description="Past 7 days average"
           icon={<TrendingUp className="size-4 text-emerald-500" />}
-          trend="+5%"
         />
         <StatCard
-          title="Total Completed"
-          value="142"
-          description="Check-ins recorded"
+          title="Total Check-ins"
+          value={stats.totalCompletions}
+          description={`Across ${stats.totalHabits} active habits`}
           icon={<CheckCircle2 className="size-4 text-blue-500" />}
         />
       </div>
 
-      {/* Consistency Heatmap / Summary Placeholder */}
+      {/* Consistency Overview (Past 7 Days) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Weekly Activity Overview</CardTitle>
-          <CardDescription>Visual summary of completed habits across the current week.</CardDescription>
+          <CardTitle className="text-base">Past 7 Days Consistency</CardTitle>
+          <CardDescription>
+            Daily completion rate calculated based on your scheduled habits.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-7 gap-2 sm:gap-4 text-center py-4">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => (
-              <div key={day} className="space-y-2">
-                <span className="text-xs font-medium text-muted-foreground">{day}</span>
-                <div
-                  className={`h-16 rounded-lg flex flex-col items-center justify-center border ${
-                    idx < 2
-                      ? "bg-primary/10 border-primary/20 text-primary"
-                      : idx === 2
-                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 font-bold"
-                      : "bg-muted/40 border-border text-muted-foreground"
-                  }`}
-                >
-                  <span className="text-xs">{idx <= 2 ? "100%" : "—"}</span>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            {stats.weeklySummary.map((item) => (
+              <div
+                key={item.date}
+                className="p-3 rounded-lg border border-border bg-card/60 flex flex-col items-center justify-between min-h-[90px]"
+              >
+                <span className="text-xs font-semibold text-muted-foreground">{item.day}</span>
+                <span className="text-[11px] text-muted-foreground">{item.date.slice(5)}</span>
+                <div className="mt-2 text-center">
+                  <span className="text-base font-bold text-foreground">
+                    {item.percentage}%
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">
+                    {item.completedCount}/{item.totalScheduled}
+                  </p>
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="pt-2">
+            <ProgressBar
+              value={stats.completionRate}
+              label="Overall Weekly Performance"
+            />
           </div>
         </CardContent>
       </Card>
     </div>
   );
 }
-
