@@ -104,3 +104,4 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
     </Card>
   );
 }
+
