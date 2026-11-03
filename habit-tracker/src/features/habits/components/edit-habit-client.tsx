@@ -98,3 +98,4 @@ export function EditHabitClient({ id }: EditHabitClientProps) {
     </div>
   );
 }
+

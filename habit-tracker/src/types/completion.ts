@@ -11,3 +11,4 @@ export interface ToggleCompletionPayload {
   habitId: string;
   completionDate: string; // "YYYY-MM-DD"
 }
+

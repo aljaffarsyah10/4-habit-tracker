@@ -12,3 +12,4 @@ export interface UserStatistics {
     percentage: number;
   }[];
 }
+

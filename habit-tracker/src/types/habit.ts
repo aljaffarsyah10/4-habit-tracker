@@ -30,3 +30,4 @@ export interface CreateHabitInput {
 export interface UpdateHabitInput extends Partial<CreateHabitInput> {
   isArchived?: boolean;
 }
+
