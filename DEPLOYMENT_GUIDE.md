@@ -196,3 +196,4 @@ npx prisma migrate deploy
    - Jika rilis bermasalah, buka menu **Deployments** di dashboard hosting, pilih deployment versi stabil sebelumnya, lalu klik **Promote to Production**. Pengalihan trafik berlangsung seketika tanpa jeda waktu *downtime*.
 2. **Database Backward Compatibility**:
    - Jangan melakukan penghapusan kolom (*drop column*) yang masih dibaca oleh versi aplikasi sebelumnya dalam satu rilis yang sama. Terapkan prinsip *Expand and Contract*.
+
