@@ -26,3 +26,8 @@ export const habitFormSchema = z.object({
 
 export type HabitFormValues = z.infer<typeof habitFormSchema>;
 
+export const updateHabitSchema = habitFormSchema.partial().extend({
+  isArchived: z.boolean().optional(),
+});
+
+export type UpdateHabitInput = z.infer<typeof updateHabitSchema>;
