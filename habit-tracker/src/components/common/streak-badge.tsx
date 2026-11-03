@@ -27,3 +27,4 @@ export function StreakBadge({ streak, className, size = "sm" }: StreakBadgeProps
     </div>
   );
 }
+
